@@ -15,7 +15,7 @@ require 'selenium-webdriver' # gem install selenium-webdriver
 # brew install geckodriver
 # brew install ChromeDriver
 
-SCREENSHOTS_DIR = './screenshots'
+SCREENSHOTS_DIR = '/Users/yutaro/screenshots'
 
 module Amazon
   class Driver
@@ -24,7 +24,6 @@ module Amazon
       a = wd.execute_script("var d=document,a=d.createElement('a');a.target='_blank';a.href=arguments[0];a.innerHTML='.';d.body.appendChild(a);return a", url)
       a.click
       wd.switch_to.window(wd.window_handles.last)
-
       wd.find_element(:link_text, '利用規約')
       yield
       wd.close
@@ -35,12 +34,12 @@ module Amazon
     def save_order(wd)
       sleep 1
       wd.find_element(:link_text, '利用規約')
-      orders = wd.find_elements(:link_text, '注文の詳細')
+      orders = wd.find_elements(:link_text, '領収書／購入明細書')
       orders.each do |ord|
         open_new_window(wd, ord.attribute('href')) do
           @order_seq += 1
           sleep(4)
-          wd.save_screenshot("#{SCREENSHOTS_DIR}/order_#{format('%03d', @order_seq)}.png")
+          wd.execute_script(' return window.print();')
         end
       end
     end
@@ -56,6 +55,8 @@ module Amazon
       wd.find_element(:id, 'ap_email').click
       wd.find_element(:id, 'ap_email').clear
       wd.find_element(:id, 'ap_email').send_keys auth[:email]
+
+      wd.find_element(:id, 'continue').click
 
       wd.find_element(:id, 'ap_password').click
       wd.find_element(:id, 'ap_password').clear
@@ -78,7 +79,7 @@ module Amazon
       # end
 
       # 今年１年分
-      wd.get 'https://www.amazon.co.jp/gp/css/order-history?ie=UTF8&ref_=nav_gno_yam_yrdrs'
+      wd.get 'https://www.amazon.co.jp/gp/css/order-history?ie=U.TF8&ref_=nav_gno_yam_yrdrs'
 
       sleep 1
       # unless wd.find_element(:id, "a-autoid-1-announce").selected?
@@ -93,7 +94,7 @@ module Amazon
       loop do
         wd.find_element(:link_text, '利用規約')
         @page_seq += 1
-        wd.save_screenshot("#{SCREENSHOTS_DIR}/page_#{format('%03d', @page_seq)}.png")
+        wd.execute_script(' return window.print();')
         open("#{SCREENSHOTS_DIR}/page_#{format('%03d', @page_seq)}.html", 'w') {|f|
           f.write wd.page_source
         }
@@ -124,7 +125,20 @@ wd = nil
 begin
   ad = Amazon::Driver.new
   # wd = Selenium::WebDriver.for :firefox
-  wd = Selenium::WebDriver.for :chrome
+  caps = Selenium::WebDriver::Remote::Capabilities.chrome(
+      "chromeOptions" => {
+          "args" => [
+              '--kiosk-printing',
+          ],
+          "prefs" => {
+              download: {
+                  default_directory: '/Users/yutaro/pdf',
+                  directory_upgrade: true,
+                  prompt_for_download: false,
+              }
+          }
+      })
+  wd = Selenium::WebDriver.for :chrome, :desired_capabilities => caps
   wd.manage.timeouts.implicit_wait = 20 # 秒
   ad.save_order_history(wd, email: ARGV[0], password: ARGV[1])
 ensure
